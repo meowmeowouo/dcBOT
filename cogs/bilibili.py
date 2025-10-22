@@ -13,7 +13,8 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 class BilibiliCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.cookies_file = "cookies.txt" if os.path.exists("cookies.txt") else None
+        # 專用 Bilibili cookies 檔
+        self.cookies_file = "bili_cookies.txt" if os.path.exists("bili_cookies.txt") else None
         self.queues = {}
         self.titles = {}
         self.is_playing = {}
@@ -54,7 +55,10 @@ class BilibiliCog(commands.Cog):
     async def download_audio(self, url: str) -> str:
         filename = os.path.join(TEMP_DIR, "%(id)s.%(ext)s")
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(self.get_ydl_options(filename)).download([url]))
+        await loop.run_in_executor(
+            None,
+            lambda: yt_dlp.YoutubeDL(self.get_ydl_options(filename)).download([url])
+        )
         for file in os.listdir(TEMP_DIR):
             if file.endswith((".webm", ".m4a", ".mp3")):
                 return os.path.join(TEMP_DIR, file)
@@ -110,12 +114,12 @@ class BilibiliCog(commands.Cog):
         else:
             voice_state = ctx_or_interaction.user.voice
 
-        if not voice_state:
+        if not voice_state or not voice_state.channel:
             msg = "❌ 你需要先進入語音頻道"
             if isinstance(ctx_or_interaction, commands.Context):
                 return await ctx_or_interaction.send(msg)
             else:
-                return await ctx_or_interaction.response.send_message(msg)
+                return await ctx_or_interaction.response.send_message(msg, ephemeral=True)
 
         full_urls = []
         titles = []
@@ -123,7 +127,7 @@ class BilibiliCog(commands.Cog):
             full_url = await self.extract_full_url(url)
             if full_url:
                 full_urls.append(full_url)
-                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                with yt_dlp.YoutubeDL({'quiet': True, 'cookiefile': self.cookies_file} if self.cookies_file else {'quiet': True}) as ydl:
                     info = ydl.extract_info(full_url, download=False)
                     titles.append(info.get('title', '未知標題'))
 
